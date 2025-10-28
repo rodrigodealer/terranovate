@@ -1,0 +1,156 @@
+name: Terraform Dependency Check
+
+on:
+  pull_request:
+    paths:
+      - '**.tf'
+      - '**.tfvars'
+      - '**/terraform.tfvars'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform-check:
+    runs-on: ubuntu-latest
+    name: Check Terraform Dependencies
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for comparing changes
+
+      - name: Get changed Terraform directories
+        id: changed-dirs
+        run: |
+          # Get list of changed .tf files
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '\.tf$' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No Terraform files changed"
+            echo "directories=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Extract unique directories
+          DIRECTORIES=$(echo "$CHANGED_FILES" | xargs -n1 dirname | sort -u | tr '\n' ' ')
+          echo "Changed Terraform directories: $DIRECTORIES"
+          echo "directories=$DIRECTORIES" >> $GITHUB_OUTPUT
+
+      - name: Set up Go
+        if: steps.changed-dirs.outputs.directories != ''
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Install Terranovate
+        if: steps.changed-dirs.outputs.directories != ''
+        run: |
+          go install github.com/heyjobs/terranovate@latest
+
+      - name: Run Terranovate checks
+        if: steps.changed-dirs.outputs.directories != ''
+        id: terranovate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DIRECTORIES="${{ steps.changed-dirs.outputs.directories }}"
+
+          if [ -z "$DIRECTORIES" ]; then
+            echo "No directories to check"
+            exit 0
+          fi
+
+          # Initialize output file
+          OUTPUT_FILE=$(mktemp)
+          echo "## 🔍 Terranovate Dependency Check Results" > $OUTPUT_FILE
+          echo "" >> $OUTPUT_FILE
+          echo "Checked directories with Terraform changes:" >> $OUTPUT_FILE
+          echo "" >> $OUTPUT_FILE
+
+          HAS_UPDATES=false
+
+          # Check each directory
+          for DIR in $DIRECTORIES; do
+            echo "Checking directory: $DIR"
+            echo "### 📁 Directory: \`$DIR\`" >> $OUTPUT_FILE
+            echo "" >> $OUTPUT_FILE
+
+            # Run terranovate check with markdown format
+            if terranovate check --path "$DIR" --format markdown >> $OUTPUT_FILE 2>&1; then
+              # Check if there are updates by looking at the output
+              if grep -q "update(s) available" $OUTPUT_FILE; then
+                HAS_UPDATES=true
+              fi
+            else
+              echo "⚠️ Failed to check $DIR" >> $OUTPUT_FILE
+            fi
+            echo "" >> $OUTPUT_FILE
+            echo "---" >> $OUTPUT_FILE
+            echo "" >> $OUTPUT_FILE
+          done
+
+          # Save output for next step
+          cat $OUTPUT_FILE > terranovate-output.md
+
+          # Set output variable
+          echo "has_updates=$HAS_UPDATES" >> $GITHUB_OUTPUT
+
+      - name: Comment PR
+        if: steps.changed-dirs.outputs.directories != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+
+            // Read the terranovate output
+            let body;
+            try {
+              body = fs.readFileSync('terranovate-output.md', 'utf8');
+            } catch (error) {
+              body = '## 🔍 Terranovate Dependency Check\n\n✨ No dependency updates found in changed directories.';
+            }
+
+            // Check for existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Terranovate Dependency Check')
+            );
+
+            // Create or update comment
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+              console.log('Updated existing PR comment');
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+              console.log('Created new PR comment');
+            }
+
+      - name: Check for breaking changes
+        if: steps.terranovate.outputs.has_updates == 'true'
+        run: |
+          if grep -q "Breaking Change" terranovate-output.md; then
+            echo "⚠️ WARNING: Breaking changes detected in dependency updates!"
+            echo "Please review the PR comment for details."
+            # Optionally fail the check if breaking changes are found
+            # exit 1
+          fi

@@ -1,0 +1,190 @@
+name: Terraform Dependency Check (All Directories)
+
+# This workflow checks ALL Terraform directories on every PR
+# Use this if you want comprehensive checks across your entire infrastructure
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform-check-all:
+    runs-on: ubuntu-latest
+    name: Check All Terraform Dependencies
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Install Terranovate
+        run: |
+          go install github.com/heyjobs/terranovate@latest
+
+      - name: Find Terraform directories
+        id: find-dirs
+        run: |
+          # Find all directories containing .tf files
+          TERRAFORM_DIRS=$(find . -name "*.tf" -type f -exec dirname {} \; | sort -u | grep -v ".terraform" || true)
+
+          if [ -z "$TERRAFORM_DIRS" ]; then
+            echo "No Terraform directories found"
+            echo "directories=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Found Terraform directories:"
+          echo "$TERRAFORM_DIRS"
+          echo "directories<<EOF" >> $GITHUB_OUTPUT
+          echo "$TERRAFORM_DIRS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run Terranovate checks
+        if: steps.find-dirs.outputs.directories != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DIRECTORIES="${{ steps.find-dirs.outputs.directories }}"
+
+          if [ -z "$DIRECTORIES" ]; then
+            echo "No directories to check"
+            exit 0
+          fi
+
+          # Initialize output file
+          OUTPUT_FILE="terranovate-output.md"
+          echo "## 🔍 Terranovate Dependency Check Results" > $OUTPUT_FILE
+          echo "" >> $OUTPUT_FILE
+          echo "_Checked all Terraform directories in the repository_" >> $OUTPUT_FILE
+          echo "" >> $OUTPUT_FILE
+
+          TOTAL_UPDATES=0
+          BREAKING_CHANGES=0
+
+          # Check each directory
+          while IFS= read -r DIR; do
+            [ -z "$DIR" ] && continue
+
+            echo "Checking directory: $DIR"
+            TEMP_OUTPUT=$(mktemp)
+
+            # Run terranovate check with markdown format
+            if terranovate check --path "$DIR" --format markdown > $TEMP_OUTPUT 2>&1; then
+              # Only include directories with updates
+              if grep -q "update(s) available" $TEMP_OUTPUT; then
+                echo "### 📁 Directory: \`$DIR\`" >> $OUTPUT_FILE
+                echo "" >> $OUTPUT_FILE
+                cat $TEMP_OUTPUT >> $OUTPUT_FILE
+                echo "" >> $OUTPUT_FILE
+                echo "---" >> $OUTPUT_FILE
+                echo "" >> $OUTPUT_FILE
+
+                # Count updates and breaking changes
+                UPDATES=$(grep -o "update(s) available" $TEMP_OUTPUT | wc -l || echo "0")
+                TOTAL_UPDATES=$((TOTAL_UPDATES + UPDATES))
+
+                if grep -q "Breaking Change" $TEMP_OUTPUT; then
+                  BREAKING_CHANGES=$((BREAKING_CHANGES + 1))
+                fi
+              fi
+            fi
+
+            rm -f $TEMP_OUTPUT
+          done <<< "$DIRECTORIES"
+
+          # Add summary at the top if there are updates
+          if [ $TOTAL_UPDATES -gt 0 ]; then
+            SUMMARY="**Summary**: Found updates in $TOTAL_UPDATES location(s)"
+            if [ $BREAKING_CHANGES -gt 0 ]; then
+              SUMMARY="$SUMMARY, including $BREAKING_CHANGES with potential breaking changes ⚠️"
+            fi
+            sed -i "3i\\$SUMMARY\\n" $OUTPUT_FILE
+          else
+            echo "✨ **All modules and providers are up to date across all directories!**" >> $OUTPUT_FILE
+          fi
+
+          # Save metrics for later steps
+          echo "total_updates=$TOTAL_UPDATES" >> $GITHUB_ENV
+          echo "breaking_changes=$BREAKING_CHANGES" >> $GITHUB_ENV
+
+      - name: Comment PR
+        if: steps.find-dirs.outputs.directories != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+
+            // Read the terranovate output
+            let body;
+            try {
+              body = fs.readFileSync('terranovate-output.md', 'utf8');
+            } catch (error) {
+              body = '## 🔍 Terranovate Dependency Check\n\n✨ No Terraform directories found or all dependencies are up to date.';
+            }
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Terranovate Dependency Check')
+            );
+
+            // Create or update comment
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+              console.log('Updated existing PR comment');
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+              console.log('Created new PR comment');
+            }
+
+      - name: Add labels based on results
+        if: env.total_updates != '0'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const labels = ['dependencies'];
+
+            if (process.env.breaking_changes !== '0') {
+              labels.push('breaking-change');
+            }
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: labels
+            });
+
+      - name: Check for breaking changes
+        if: env.breaking_changes != '0'
+        run: |
+          echo "⚠️ WARNING: Breaking changes detected in dependency updates!"
+          echo "Please review the PR comment for details."
+          # Uncomment to fail the check if breaking changes are found
+          # exit 1

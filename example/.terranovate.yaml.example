@@ -1,0 +1,155 @@
+# Terranovate Configuration Example
+# Copy this file to .terranovate.yaml and customize for your needs
+
+# Terraform configuration
+terraform:
+  # Path to Terraform binary (optional, will use PATH if not specified)
+  # binary_path: /usr/local/bin/terraform
+
+  # Working directory for Terraform operations
+  working_dir: .
+
+  # Additional environment variables for Terraform commands
+  env:
+    AWS_REGION: us-east-1
+    # AWS_PROFILE: production
+    # TF_LOG: DEBUG
+
+# GitHub configuration
+github:
+  # GitHub token for API authentication
+  # HIGHLY RECOMMENDED: Use environment variable GITHUB_TOKEN instead
+  # token: ghp_xxxxxxxxxxxxxxxxxxxx
+
+  # Base URL for GitHub API (for GitHub Enterprise)
+  base_url: https://api.github.com
+
+  # Repository owner/organization
+  owner: your-org
+
+  # Repository name
+  repo: your-repo
+
+  # Base branch for PRs (default: main)
+  base_branch: main
+
+  # Labels to apply to PRs
+  labels:
+    - terraform
+    - dependencies
+    - automated
+
+  # Reviewers to assign to PRs
+  reviewers:
+    - platform-team
+    - terraform-admins
+
+# Scanner configuration
+scanner:
+  # File patterns to include (default: ["*.tf"])
+  include:
+    - "*.tf"
+
+  # Paths and patterns to exclude
+  # IMPORTANT: Always exclude .terraform to avoid scanning downloaded modules
+  exclude:
+    - ".terraform"           # Downloaded modules and providers
+    - ".terraform.lock.hcl"  # Lock file
+    - "examples"             # Example code
+    - "tests"                # Test fixtures
+    - "**/.terragrunt-cache" # Terragrunt cache
+
+  # Recurse into subdirectories (default: true)
+  recursive: true
+
+# Version checking configuration
+version_check:
+  # Skip pre-release versions (alpha, beta, rc)
+  skip_prerelease: true
+
+  # Only check for patch updates (X.Y.Z -> X.Y.Z+1)
+  patch_only: false
+
+  # Only check for minor updates (X.Y.Z -> X.Y+1.0)
+  minor_only: false
+
+  # Modules to ignore when checking for updates
+  ignore_modules:
+    - legacy-vpc
+    - deprecated-module
+
+  # Providers to ignore when checking for unused providers
+  # Recommended: Add utility providers that might be used implicitly
+  ignore_unused_providers:
+    - null      # Often used for triggers and dependencies
+    - random    # May be used for random values
+    - time      # May be used for time-based resources
+    - local     # May be used by modules only
+    - external  # May be used for external data sources
+    - archive   # May be used for zip files
+    - http      # May be used for HTTP data sources
+    - template  # Legacy, but may still be in use
+    - tls       # May be used for certificates
+
+# Notification configuration
+notifier:
+  # Output format: text, json, markdown
+  output_format: text
+
+  # Slack notifications
+  slack:
+    enabled: false
+    webhook_url: https://hooks.slack.com/services/XXX/YYY/ZZZ
+    channel: "#terraform-updates"
+
+# OpenAI configuration for AI-powered breaking change detection
+openai:
+  # Enable AI-powered analysis
+  enabled: false
+
+  # OpenAI API key (recommended to use OPENAI_API_KEY env var instead)
+  # api_key: sk-xxxxxxxxxxxxxxxxxxxx
+
+  # Model to use (default: gpt-4o-mini)
+  model: gpt-4o-mini
+
+  # Base URL for OpenAI API (for custom endpoints)
+  base_url: https://api.openai.com/v1
+
+  # Minimum confidence level to display AI assessments (default: low)
+  # Options:
+  #   - "low": Show all AI assessments regardless of confidence (default)
+  #   - "medium": Show only medium and high confidence AI assessments
+  #   - "high": Show only high confidence AI assessments
+  # Use this to filter out uncertain AI assessments and focus on high-confidence breaking changes
+  # min_confidence: low
+
+# Example configurations for different scenarios:
+
+# Minimal configuration (using environment variables):
+# github:
+#   owner: your-org
+#   repo: your-repo
+# scanner:
+#   exclude:
+#     - ".terraform"
+
+# Conservative updates only:
+# version_check:
+#   patch_only: true
+#   skip_prerelease: true
+
+# With AI-powered analysis:
+# openai:
+#   enabled: true
+#   min_confidence: medium  # Only show medium/high confidence assessments
+# (Set OPENAI_API_KEY environment variable)
+
+# For monorepo with multiple environments:
+# scanner:
+#   recursive: true
+#   exclude:
+#     - ".terraform"
+#     - "**/.terraform"
+#     - "**/examples"
+#     - "**/tests"

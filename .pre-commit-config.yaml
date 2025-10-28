@@ -1,0 +1,72 @@
+# Pre-commit hooks for Terranovate
+# See https://pre-commit.com for more information
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Go formatting and imports
+  - repo: https://github.com/tekwizely/pre-commit-golang
+    rev: v1.0.0-rc.1
+    hooks:
+      # Format Go code
+      - id: go-fmt
+        args: [-w]
+
+      # Format imports
+      - id: go-imports
+        args: [-w]
+
+      # Run go vet
+      - id: go-vet
+
+      # Run go mod tidy
+      - id: go-mod-tidy
+
+  # golangci-lint for comprehensive linting
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.62.2
+    hooks:
+      - id: golangci-lint
+        args:
+          - --timeout=5m
+          - --fix
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Prevent committing large files
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+
+      # Check YAML syntax
+      - id: check-yaml
+
+      # Check for merge conflicts
+      - id: check-merge-conflict
+
+      # Trim trailing whitespace
+      - id: trailing-whitespace
+
+      # Ensure files end with newline
+      - id: end-of-file-fixer
+
+      # Check for private keys
+      - id: detect-private-key
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.43.0
+    hooks:
+      - id: markdownlint
+        args: ['--fix']
+
+  # Go tests
+  - repo: local
+    hooks:
+      - id: go-test
+        name: go test
+        entry: go test -v -race -timeout=2m ./...
+        language: system
+        pass_filenames: false
+        files: \.go$

@@ -1,0 +1,153 @@
+# Terranovate Configuration File
+# This file configures how Terranovate scans, checks, and updates Terraform modules
+
+# Terraform configuration
+terraform:
+  # Path to Terraform binary (optional, uses PATH if not specified)
+  # binary_path: /usr/local/bin/terraform
+
+  # Working directory for Terraform operations (default: current directory)
+  working_dir: .
+
+  # Additional environment variables for Terraform
+  env:
+    # TF_LOG: DEBUG
+    # AWS_REGION: us-east-1
+
+# GitHub configuration
+github:
+  # GitHub token for API authentication
+  # Can also be set via GITHUB_TOKEN environment variable (RECOMMENDED)
+  #
+  # IMPORTANT: A token is highly recommended to avoid rate limiting:
+  #   - Without token: 60 requests/hour
+  #   - With token: 5,000 requests/hour
+  #   - Also enables access to private repositories
+  #
+  # To set via environment variable:
+  #   export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+  #
+  # Or uncomment the line below:
+  # token: ghp_xxxxxxxxxxxxxxxxxxxx
+
+  # GitHub API base URL (for GitHub Enterprise)
+  # base_url: https://github.company.com/api/v3
+
+  # Repository owner/organization
+  owner: heyjobs
+
+  # Repository name
+  repo: platform-infra
+
+  # Base branch for pull requests (default: main)
+  base_branch: main
+
+  # Labels to apply to pull requests
+  labels:
+    - terraform
+    - dependencies
+    - automated
+
+  # Reviewers to assign to pull requests
+  reviewers:
+    - platform-team
+
+# Scanner configuration
+scanner:
+  # File patterns to include (default: *.tf)
+  include:
+    - "*.tf"
+
+  # Paths or patterns to exclude
+  # IMPORTANT: Always exclude .terraform to avoid scanning downloaded modules
+  # This prevents errors from legacy Terraform provider formats
+  exclude:
+    - ".terraform"           # Downloaded modules and providers
+    - ".terraform.lock.hcl"  # Terraform lock file
+    - "**/.terraform"        # Nested .terraform directories
+    - ".terragrunt-cache"    # Terragrunt cache
+    - "**/.terragrunt-cache" # Nested terragrunt cache
+    - "examples"             # Example code
+    - "tests"                # Test fixtures
+
+  # Recursively scan subdirectories (default: true)
+  recursive: true
+
+# Version checking configuration
+version_check:
+  # Skip pre-release versions (default: true)
+  skip_prerelease: true
+
+  # Only check for patch updates (X.Y.Z -> X.Y.Z+1)
+  patch_only: false
+
+  # Only check for minor updates (X.Y.Z -> X.Y+1.Z)
+  minor_only: false
+
+  # Modules to ignore (never update)
+  ignore_modules:
+    # - legacy-vpc
+    # - deprecated-module
+
+  # Providers to ignore when checking for unused providers
+  # Utility providers are often used implicitly or in modules
+  ignore_unused_providers:
+    - null      # Often used for triggers and dependencies
+    - random    # May be used for random values
+    - time      # May be used for time-based resources
+    - local     # May be used by modules only
+    - external  # May be used for external data sources
+    - archive   # May be used for zip files
+    - http      # May be used for HTTP data sources
+    - template  # Legacy, but may still be in use
+    - tls       # May be used for certificates
+
+  # Display filter: controls which updates to show in output
+  # Options:
+  #   - "all": Show all updates (patch, minor, major) - default
+  #   - "major-only" or "critical-only": Show only major version updates
+  #   - "minor-and-above": Show minor and major updates (hide patches)
+  # Useful for reducing noise in large repos with many patch updates
+  # display_filter: all
+
+# Notifier configuration
+notifier:
+  # Output format: text, json, or slack
+  output_format: text
+
+  # Slack notification settings
+  slack:
+    # Enable Slack notifications
+    enabled: false
+
+    # Slack webhook URL
+    # webhook_url: https://hooks.slack.com/services/XXX/YYY/ZZZ
+
+    # Slack channel to post to (optional, uses webhook default)
+    # channel: "#terraform-updates"
+
+# OpenAI configuration for AI-powered breaking change detection
+openai:
+  # Enable AI-powered breaking change analysis
+  enabled: false
+
+  # OpenAI API key (can also be set via OPENAI_API_KEY environment variable)
+  # api_key: sk-xxxxxxxxxxxxxxxxxxxx
+
+  # Model to use (default: gpt-4o-mini)
+  # Other options: gpt-4o, gpt-4-turbo
+  model: gpt-4o-mini
+
+  # Base URL for OpenAI API (for custom endpoints)
+  # Default: https://api.openai.com/v1
+  # Azure OpenAI: https://your-resource.openai.azure.com/openai/deployments/your-deployment
+  # Langdock: https://api.langdock.com/v1
+  # base_url: https://api.openai.com/v1
+
+  # Minimum confidence level to display AI assessments (default: low)
+  # Options:
+  #   - "low": Show all AI assessments regardless of confidence (default)
+  #   - "medium": Show only medium and high confidence AI assessments
+  #   - "high": Show only high confidence AI assessments
+  # Use this to filter out uncertain AI assessments and focus on high-confidence breaking changes
+  # min_confidence: low
