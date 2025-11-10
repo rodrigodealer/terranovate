@@ -123,6 +123,25 @@ github:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Clear environment variables that could interfere with tests
+			oldGitHubToken := os.Getenv("GITHUB_TOKEN")
+			oldOpenAIKey := os.Getenv("OPENAI_API_KEY")
+			oldOpenAIBaseURL := os.Getenv("OPENAI_BASE_URL")
+			os.Unsetenv("GITHUB_TOKEN")
+			os.Unsetenv("OPENAI_API_KEY")
+			os.Unsetenv("OPENAI_BASE_URL")
+			defer func() {
+				if oldGitHubToken != "" {
+					os.Setenv("GITHUB_TOKEN", oldGitHubToken)
+				}
+				if oldOpenAIKey != "" {
+					os.Setenv("OPENAI_API_KEY", oldOpenAIKey)
+				}
+				if oldOpenAIBaseURL != "" {
+					os.Setenv("OPENAI_BASE_URL", oldOpenAIBaseURL)
+				}
+			}()
+
 			// Create temporary file
 			tmpFile, err := os.CreateTemp("", "config-test-*.yaml")
 			if err != nil {

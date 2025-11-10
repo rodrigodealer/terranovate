@@ -1,11 +1,20 @@
 package terraform
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 
 	"github.com/heyjobs/terranovate/internal/version"
 )
+
+// skipIfNoTerraform skips the test if terraform binary is not available
+func skipIfNoTerraform(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("terraform"); err != nil {
+		t.Skip("Skipping test: terraform binary not found in PATH")
+	}
+}
 
 func TestAnalyzeResourceChanges(t *testing.T) {
 	tests := []struct {
@@ -552,6 +561,8 @@ func TestResourceChange(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
+	skipIfNoTerraform(t)
+
 	tests := []struct {
 		name       string
 		workingDir string

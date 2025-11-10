@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -11,7 +12,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// skipIfNoTerraform skips the test if terraform binary is not available
+func skipIfNoTerraform(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("terraform"); err != nil {
+		t.Skip("Skipping test: terraform binary not found in PATH")
+	}
+}
+
 func TestRunner_New(t *testing.T) {
+	skipIfNoTerraform(t)
+
 	tmpDir, err := os.MkdirTemp("", "terranovate-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
@@ -28,6 +39,8 @@ func TestRunner_InvalidWorkingDir(t *testing.T) {
 }
 
 func TestRunner_FormatPlanOutput(t *testing.T) {
+	skipIfNoTerraform(t)
+
 	// This is a unit test for the plan output formatting
 	// Since the method is private, we'll test it indirectly through Plan
 	// In a real scenario, you might want to export this for testing
@@ -85,6 +98,8 @@ resource "null_resource" "test" {
 }
 
 func TestRunner_WithEnvVars(t *testing.T) {
+	skipIfNoTerraform(t)
+
 	tmpDir, err := os.MkdirTemp("", "terranovate-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
