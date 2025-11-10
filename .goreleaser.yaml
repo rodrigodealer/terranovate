@@ -1,0 +1,129 @@
+# GoReleaser configuration for Terranovate
+# Documentation: https://goreleaser.com
+
+version: 2
+
+before:
+  hooks:
+    # Ensure dependencies are up to date
+    - go mod tidy
+    # Run tests before building
+    - go test ./...
+
+builds:
+  - id: terranovate
+    main: .
+    binary: terranovate
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # Exclude invalid combinations
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.Version={{.Version}}
+      - -X main.Commit={{.Commit}}
+      - -X main.Date={{.Date}}
+    mod_timestamp: "{{.CommitTimestamp}}"
+
+archives:
+  - id: terranovate
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if eq .Os "windows" }}.zip
+      {{- else }}.tar.gz{{ end }}
+    files:
+      - README.md
+      - LICENSE
+      - .terranovate.yaml
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "^style:"
+      - "Merge pull request"
+      - "Merge branch"
+  groups:
+    - title: "Features"
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: "Bug Fixes"
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: "Enhancements"
+      regexp: '^.*?(enhance|perf)(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: "Other Changes"
+      order: 999
+
+release:
+  github:
+    owner: heyjobs
+    name: terranovate
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## Terranovate {{.Version}}
+
+    **Full Changelog**: https://github.com/heyjobs/terranovate/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# Homebrew tap (optional, uncomment if you create a tap)
+# brews:
+#   - name: terranovate
+#     repository:
+#       owner: heyjobs
+#       name: homebrew-tap
+#     description: "Terraform version manager and update checker"
+#     homepage: "https://github.com/heyjobs/terranovate"
+#     license: "Apache-2.0"
+#     install: |
+#       bin.install "terranovate"
+
+# Docker images (optional)
+# dockers:
+#   - image_templates:
+#       - "ghcr.io/heyjobs/terranovate:{{ .Version }}"
+#       - "ghcr.io/heyjobs/terranovate:latest"
+#     dockerfile: Dockerfile
+#     use: buildx
+#     build_flag_templates:
+#       - "--platform=linux/amd64"
+#       - "--platform=linux/arm64"
+#       - "--label=org.opencontainers.image.created={{.Date}}"
+#       - "--label=org.opencontainers.image.title={{.ProjectName}}"
+#       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+#       - "--label=org.opencontainers.image.version={{.Version}}"
+
+# Announcements (optional)
+# announce:
+#   slack:
+#     enabled: true
+#     message_template: 'Terranovate {{ .Tag }} is out! Check it out at {{ .ReleaseURL }}'
+#     channel: '#releases'
