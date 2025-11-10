@@ -84,7 +84,7 @@ changelog:
 
 release:
   github:
-    owner: heyjobs
+    owner: rodrigodealer
     name: terranovate
   draft: false
   prerelease: auto
@@ -92,16 +92,16 @@ release:
   header: |
     ## Terranovate {{.Version}}
 
-    **Full Changelog**: https://github.com/heyjobs/terranovate/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/rodrigodealer/terranovate/compare/{{ .PreviousTag }}...{{ .Tag }}
 
 # Homebrew tap (optional, uncomment if you create a tap)
 # brews:
 #   - name: terranovate
 #     repository:
-#       owner: heyjobs
+#       owner: rodrigodealer
 #       name: homebrew-tap
 #     description: "Terraform version manager and update checker"
-#     homepage: "https://github.com/heyjobs/terranovate"
+#     homepage: "https://github.com/rodrigodealer/terranovate"
 #     license: "Apache-2.0"
 #     install: |
 #       bin.install "terranovate"
@@ -109,8 +109,8 @@ release:
 # Docker images (optional)
 # dockers:
 #   - image_templates:
-#       - "ghcr.io/heyjobs/terranovate:{{ .Version }}"
-#       - "ghcr.io/heyjobs/terranovate:latest"
+#       - "ghcr.io/rodrigodealer/terranovate:{{ .Version }}"
+#       - "ghcr.io/rodrigodealer/terranovate:latest"
 #     dockerfile: Dockerfile
 #     use: buildx
 #     build_flag_templates:
